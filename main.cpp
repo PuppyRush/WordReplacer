@@ -1,50 +1,82 @@
-﻿#include <iostream>
+﻿
+#define _CRT_SECURE_NO_WARNINGS
+#include <iostream>
 #include <Windows.h>
 #include <fstream>
+#include <istream>
 #include <string>
-#include <set>
+#include <map>
 
+#define BUF_SIZE	512
 using namespace std;
+
+string getFilename(const string str) {
+	size_t pos=string::npos;
+	if ( (pos =str.find_last_of('\\'))>0) {
+		return str.substr(pos+1, str.size() - pos);
+	}
+	return str;
+}
 
 int main(int argc, const char **argv) {
 
-	if (argc <= 1)
-		return -1;
-
-	
-
-	string path(argv[0]);
-	set<string> words;
-	for (int i = 1; i < argc; i++) {
-		words.insert(string(argv[i]));
+	if (argc <= 2 || (argc - 2) % 2 == 1) {
+		cerr << "illegal arguments. check this command" << endl << "[origin path],([old word],[new word]) , (,) ,..." << endl;
+		exit(0);
 	}
 
-	wchar_t _path[257];
-	wchar_t newpath[20];
+	ios::sync_with_stdio(false);
+	cin.tie(nullptr);
+	cout.precision(10);
+
+	string path(argv[1]);
+	map<string,string> words;
+	for (int i = 2; i < argc; i+=2) {
+		words.insert(make_pair(string(argv[i]),string(argv[i+1])) );
+	}
+
+	string temppath = "c:/temp_src/";
+	temppath = temppath.append(getFilename(path));
+
+	wchar_t _path[BUF_SIZE];
+	wchar_t newpath[BUF_SIZE];
 	
-	mbstowcs_s(_path, path.c_str(), strlen(path.c_str()) + 1);
-	mbstowcs(_path, "C:/temp_rsc", strlen("C:/temp.rsc") + 1);
-	CopyFile(_path, newpath, true);
+	mbstowcs(_path, path.c_str(), strlen(path.c_str()) + 1);
+	mbstowcs(newpath, temppath.c_str(), temppath.size() + 1);
+	if (!CopyFile(_path, newpath, false)) {
+		cerr << "Error: " << GetLastError() << endl;
+		cerr << "need a directory necessarily-> c:\temp_src. check this dir. close this program. bye." << endl;
+		exit(0);
+	}
+	
+	char buf[BUF_SIZE];
+	memset(buf, 0, BUF_SIZE);
 
-	fstream fs(path, std::ifstream::in || std::ostream::out);
+	ifstream fs(temppath, std::ifstream::in);
+	ofstream os(path, std::ofstream::out);
 	fs.seekg(0, std::ios_base::beg);
-	while (fs.is_open() && !fs.eof()) {
-		char buf[256];
-		memset(buf, 0, 256);
-
-		size_t prev_pos = fs.tellp();
-		fs.getline(buf, 256);
+	bool isEof = false;
+	while (fs.getline(buf, BUF_SIZE)) {
+		
+		size_t prev_pos = fs.tellg();
 		string s(buf);
 
-		auto it = s.begin();
-		while (it != s.end()) {
-			size_t pos = 0;
-			if ((pos=s.find(*it)) != string::npos) {
-				fs.seekg(prev_pos + pos);
+		auto it = words.begin();
+		while (it != words.end()) {
+			size_t pos = string::npos;
+			if ((pos=s.find(it->first)) != string::npos) {
+				s = s.replace(pos, it->first.size(), it->second, 0,it->second.size());
+				memset(buf, 0, BUF_SIZE);
+				strcat_s(buf, BUF_SIZE, s.c_str());
+				it = words.erase(it);
 			}
 			it++;
 		}
-
-		cout << s;
+		const size_t endpos = strlen(buf);
+		buf[endpos] = '\n';
+		buf[endpos + 1] = 0;
+		os << buf;
 	}
+	cout << "success changing words. bye.\n";
+	cout << "note : a origin file was moved to c:\temp_src";
 }
